@@ -50,7 +50,11 @@ from config import (
 )
 from data_fetcher import fetch_and_prepare_data, prepare_features
 from envs.multi_stock_trading_env import MultiStockTradingEnv
+from envs.multi_stock_trading_env import MultiStockTradingEnv
 from models.lstm_feature_extractor import LSTMFeatureExtractor
+
+# Import backtest function for rolling validation
+from backtest import backtest
 
 
 class TensorboardCallback(BaseCallback):
@@ -333,7 +337,30 @@ def train_with_rolling_window(
         # Save model after each window
         model_path = os.path.join(save_dir, f"clstm_ppo_window_{i+1}.zip")
         model.save(model_path)
+        model.save(model_path)
         print(f"Model saved to {model_path}")
+        
+        # Paper: "and then traded on the test set for three months"
+        # Perform out-sample testing for this window
+        print(f"\nPerforming Out-Sample Test ({test_start} to {test_end})...")
+        
+        # Create test environment
+        test_df, _ = prepare_features(df, test_start, test_end)
+        
+        # Use deterministic=True for testing (Parameter Freezing)
+        portfolio_df, metrics = backtest(
+            model=model,
+            df=df,  # Pass full df, backtest handles slicing
+            start_date=test_start,
+            end_date=test_end,
+            turbulence_threshold=turbulence_threshold,
+            deterministic=True  # Freezing parameters (no exploration)
+        )
+        
+        print(f"Window {i+1} Results:")
+        print(f"  CR: {metrics['CR']*100:.2f}%")
+        print(f"  SR: {metrics['SR']:.4f}")
+        print(f"  Trades: {metrics['total_trades']}")
     
     # Save final model
     final_model_path = os.path.join(save_dir, "clstm_ppo_final.zip")

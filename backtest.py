@@ -157,6 +157,12 @@ def backtest(
     # Prepare test data
     test_df, _ = prepare_features(df, start_date, end_date)
     
+    # Check if we have enough data for the lookback window
+    window_size = 30  # Default window size
+    if len(test_df['date'].unique()) <= window_size:
+        print(f"Warning: Not enough data for backtest ({len(test_df['date'].unique())} days < {window_size}). Skipping.")
+        return pd.DataFrame(), {'CR': 0, 'SR': 0, 'total_trades': 0}
+
     # Create test environment
     test_env = MultiStockTradingEnv(
         df=test_df,
