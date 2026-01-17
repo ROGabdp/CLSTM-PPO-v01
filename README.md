@@ -12,7 +12,7 @@
 
 CLSTM-PPO 模型使用串聯式 LSTM 架構：
 
-1. **LSTM 特徵提取器**：從 T=30 天的觀察窗口中提取時序特徵（輸出：128 維）
+1. **LSTM 特徵提取器**：提取時序特徵（T=30） → 下採樣至 15 步 → Flatten → Linear 層（符合論文 15×128 輸入維度）
 2. **RecurrentPPO 策略網路**：基於 LSTM 的策略網路（隱藏層：512）進行決策
 
 ![Architecture](reference/figure%2002.jpg)
