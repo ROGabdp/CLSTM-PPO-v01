@@ -31,7 +31,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.monitor import Monitor
 
 from config import (
@@ -81,24 +83,16 @@ def create_train_env(
     start_date: str,
     end_date: str,
     turbulence_threshold: float,
+    n_envs: int = 1,
     **kwargs
-) -> DummyVecEnv:
+):
     """
-    Create training environment.
-    
-    Args:
-        df: Full stock data DataFrame
-        start_date: Training start date
-        end_date: Training end date
-        turbulence_threshold: Turbulence threshold for risk control
-        **kwargs: Additional environment arguments
-        
-    Returns:
-        Vectorized environment
+    Create training environment (vectorized).
     """
     # Filter data for date range
     train_df, _ = prepare_features(df, start_date, end_date)
     
+    # Define environment factory
     def make_env():
         env = MultiStockTradingEnv(
             df=train_df,
@@ -107,8 +101,12 @@ def create_train_env(
             **kwargs
         )
         return Monitor(env)
-    
-    return DummyVecEnv([make_env])
+
+    # Use SubprocVecEnv for parallel execution if n_envs > 1
+    if n_envs > 1:
+        return SubprocVecEnv([make_env for _ in range(n_envs)])
+    else:
+        return DummyVecEnv([make_env])
 
 
 def create_model(
@@ -236,6 +234,7 @@ def train_single_period(
     train_end: str,
     turbulence_threshold: float,
     timesteps: int,
+    n_envs: int = 1,
     reset_num_timesteps: bool = True,
 ) -> RecurrentPPO:
     """
@@ -254,7 +253,7 @@ def train_single_period(
         Trained model
     """
     # Create training environment
-    train_env = create_train_env(df, train_start, train_end, turbulence_threshold)
+    train_env = create_train_env(df, train_start, train_end, turbulence_threshold, n_envs=n_envs)
     
     # Update model environment
     model.set_env(train_env)
@@ -276,6 +275,7 @@ def train_with_rolling_window(
     turbulence_threshold: float,
     timesteps_per_window: int = TOTAL_TIMESTEPS,
     save_dir: str = MODEL_DIR,
+    n_envs: int = 1,
 ) -> RecurrentPPO:
     """
     Train model with rolling window strategy.
@@ -307,8 +307,9 @@ def train_with_rolling_window(
     print(f"Timesteps per window: {timesteps_per_window:,}")
     
     # Create initial environment and model
+    # Create initial environment and model
     initial_env = create_train_env(
-        df, TRAIN_START_DATE, TRAIN_END_DATE, turbulence_threshold
+        df, TRAIN_START_DATE, TRAIN_END_DATE, turbulence_threshold, n_envs=n_envs
     )
     
     model = create_model(
@@ -332,6 +333,7 @@ def train_with_rolling_window(
             train_end=t_end,
             turbulence_threshold=turbulence_threshold,
             timesteps=timesteps_per_window,
+            n_envs=n_envs,
             reset_num_timesteps=(i == 0),  # Only reset on first window
         )
         
@@ -442,6 +444,10 @@ def main():
         "--save_dir", type=str, default=MODEL_DIR,
         help=f"Directory to save models (default: {MODEL_DIR})"
     )
+    parser.add_argument(
+        "--n_envs", type=int, default=1,
+        help="Number of parallel environments (default: 1)"
+    )
     
     args = parser.parse_args()
     
@@ -471,6 +477,7 @@ def main():
             turbulence_threshold=turbulence_threshold,
             timesteps_per_window=args.timesteps,  # Use full timesteps per window
             save_dir=args.save_dir,
+            n_envs=args.n_envs,
         )
     else:
         model = train_simple(
