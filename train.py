@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.monitor import Monitor
 
 from config import (
     DOW_30_TICKERS,
@@ -105,7 +106,7 @@ def create_train_env(
             mode='train',
             **kwargs
         )
-        return env
+        return Monitor(env)
     
     return DummyVecEnv([make_env])
 
