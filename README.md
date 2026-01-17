@@ -69,7 +69,27 @@ python main.py train
 python main.py train --rolling --timesteps 500000
 ```
 
-### 3. 回測
+### 3. 訓練監控 (TensorBoard)
+在訓練過程中，您可以啟動 TensorBoard 來即時監控訓練曲線（獎勵、損失等）：
+
+```bash
+tensorboard --logdir models_saved/logs
+```
+然後在瀏覽器打開 [http://localhost:6006](http://localhost:6006)。
+重點觀察指標：
+- `rollout/ep_reward_mean` (回合平均獎勵)：應呈上升趨勢。
+- `train/loss` (損失函數)：應呈下降或平穩趨勢。
+
+### 4. 重新訓練 (Cleanup)
+若要重新開始全新的訓練，建議刪除舊的模型與日誌以避免混淆：
+
+```powershell
+# Windows PowerShell
+Remove-Item models_saved -Recurse -Force
+Remove-Item results -Recurse -Force
+```
+
+### 5. 回測
 ```bash
 # 回測已訓練模型
 python main.py backtest --model_path models_saved/clstm_ppo_final.zip
