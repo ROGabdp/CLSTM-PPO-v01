@@ -65,7 +65,7 @@ python main.py train --test_run
 # 完整訓練（預設 100k 步）
 python main.py train
 
-# 論文方式：滾動視窗訓練
+# 論文方式：滾動視窗訓練（每視窗訓練 500k 步）
 python main.py train --rolling --timesteps 500000
 ```
 
