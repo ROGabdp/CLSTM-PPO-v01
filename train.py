@@ -468,7 +468,7 @@ def main():
         model = train_with_rolling_window(
             df=df,
             turbulence_threshold=turbulence_threshold,
-            timesteps_per_window=args.timesteps // 5,  # Divide by number of windows
+            timesteps_per_window=args.timesteps,  # Use full timesteps per window
             save_dir=args.save_dir,
         )
     else:
