@@ -112,6 +112,7 @@ python main.py backtest --model_path models_saved/clstm_ppo_final.zip
 - **持續學習 (Continuous Learning)**：模型在進入下一個視窗時保留參數繼續訓練，而非重置（`reset_num_timesteps=False`）。
 - **參數凍結測試 (Deterministic Testing)**：在每個滾動視窗的 Out-Sample 測試階段，強制凍結模型參數（`deterministic=True`），確保測試結果真實反映當前模型能力。
 
+- **風險控制 (Turbulence Index)**：當市場動盪指數（Turbulence）超過閾值時，強制執行**平倉 (Sell All)** 策略以規避風險（Reference: Paper Line 578）。
 - **訓練期**：2009-01-01 至 2015-12-31（初始）
 - **測試期**：2016-01-01 至 2020-05-08
 - **滾動頻率**：每 3 個月
