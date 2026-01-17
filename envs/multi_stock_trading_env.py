@@ -134,12 +134,20 @@ class MultiStockTradingEnv(gym.Env):
         # Create lookup dictionaries for fast access
         self.price_data = {}  # date -> {ticker: price}
         self.indicator_data = {}  # date -> {ticker: {macd, rsi, cci, adx}}
+        self.turbulence_data = {} # date -> turbulence_value
         
         for date in self.dates:
             date_df = self.df[self.df['date'] == date].set_index('tic')
             
             self.price_data[date] = {}
             self.indicator_data[date] = {}
+            
+            # Store turbulence (same for all tickers on this date)
+            # Take the first available turbulence value for this date
+            if 'turbulence' in date_df.columns:
+                self.turbulence_data[date] = date_df['turbulence'].iloc[0]
+            else:
+                self.turbulence_data[date] = 0.0
             
             for ticker in self.tickers:
                 if ticker in date_df.index:
@@ -297,6 +305,19 @@ class MultiStockTradingEnv(gym.Env):
         # Execute trades
         # Action in [-1, 1] -> shares to trade = action * hmax
         shares_to_trade = (action * self.hmax).astype(np.int32)
+        
+        # Turbulence Logic (Market Risk Filter)
+        # Check if turbulence exceeds threshold
+        current_turbulence = self.turbulence_data.get(current_date, 0)
+        
+        if self.turbulence_threshold is not None and current_turbulence > self.turbulence_threshold:
+            # Force Sell All (Close Position)
+            # Paper Line 578: "all the stocks will be sold to avoid risk"
+            shares_to_trade = -self.shares.astype(np.int32)
+            
+            if self.print_verbosity >= 1:
+                print(f"Turbulence triggered ({current_turbulence:.2f} > {self.turbulence_threshold:.2f}) at {current_date}. Selling all.")
+        
         
         # Process sells first (to free up capital)
         sell_mask = shares_to_trade < 0
