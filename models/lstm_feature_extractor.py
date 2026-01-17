@@ -87,12 +87,19 @@ class LSTMFeatureExtractor(BaseFeaturesExtractor):
             bidirectional=False,
         )
         
+        # Downsampling: T=30 -> 15 (take every 2nd timestep)
+        # This matches paper's Linear1 input dimension of 15×128
+        self.downsample_factor = 2
+        self.downsampled_steps = window_size // self.downsample_factor  # 30 // 2 = 15
+        
         # Three linear layers with Tanh activation
         # Paper (Line 878-883):
         # "Linear layer 1 is (15×128, 128) and then passes the Tanh activation function.
         #  Linear layer2 and 3 are the same two layers of (128, 128), and then pass Tanh."
-        # Note: We use lstm_hidden_size as input to first linear layer
-        self.linear1 = nn.Linear(self.lstm_hidden_size, self._output_dim)
+        # 
+        # Linear1 input: 15 timesteps × 128 hidden = 1920 dimensions
+        linear1_input_dim = self.downsampled_steps * self.lstm_hidden_size  # 15 * 128 = 1920
+        self.linear1 = nn.Linear(linear1_input_dim, self._output_dim)
         self.linear2 = nn.Linear(self._output_dim, self._output_dim)
         self.linear3 = nn.Linear(self._output_dim, self._output_dim)
         self.tanh = nn.Tanh()
@@ -118,12 +125,15 @@ class LSTMFeatureExtractor(BaseFeaturesExtractor):
         """
         Extract features from observation sequence.
         
-        Algorithm 1 implementation:
-        1. Get last N-day states list
-        2. Initialize LSTM hidden and cell states
-        3. For each state, pass through LSTM
-        4. Extract features from last LSTM output
-        5. Pass through linear layers with Tanh
+        Architecture (matching paper Line 876-883):
+        1. Input: (batch, T=30, 181) state sequence
+        2. LSTM: produces (batch, 30, 128)
+        3. Downsample: take every 2nd timestep -> (batch, 15, 128)
+        4. Flatten: (batch, 15*128) = (batch, 1920)
+        5. Linear1: (1920, 128) + Tanh
+        6. Linear2: (128, 128) + Tanh
+        7. Linear3: (128, 128) + Tanh
+        8. Output: (batch, 128)
         
         Args:
             observations: Flattened observations of shape (batch, window_size * state_dim)
@@ -140,14 +150,16 @@ class LSTMFeatureExtractor(BaseFeaturesExtractor):
         x = self._normalize_input(x)
         
         # Pass through LSTM
-        # lstm_out: (batch, window_size, lstm_hidden_size)
-        # h_n: (1, batch, lstm_hidden_size) - final hidden state
-        # c_n: (1, batch, lstm_hidden_size) - final cell state
+        # lstm_out: (batch, window_size=30, lstm_hidden_size=128)
         lstm_out, (h_n, c_n) = self.lstm(x)
         
-        # Use the last timestep's output (current state features)
-        # Paper: "Extract features from the last LSTM layer"
-        features = lstm_out[:, -1, :]  # (batch, lstm_hidden_size)
+        # Downsample: take every 2nd timestep (30 -> 15)
+        # Paper: Linear1 is (15×128, 128), implying 15 timesteps
+        downsampled = lstm_out[:, ::self.downsample_factor, :]  # (batch, 15, 128)
+        
+        # Flatten the temporal features
+        # (batch, 15, 128) -> (batch, 1920)
+        features = downsampled.reshape(batch_size, -1)
         
         # Pass through three linear layers with Tanh activation
         features = self.tanh(self.linear1(features))
