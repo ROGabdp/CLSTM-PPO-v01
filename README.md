@@ -67,6 +67,9 @@ python main.py train
 
 # 論文方式：滾動視窗訓練（每視窗訓練 500k 步）
 python main.py train --rolling --timesteps 500000
+
+# 平行訓練加速（使用 8 個環境）
+python main.py train --rolling --timesteps 500000 --n_envs 8
 ```
 
 ### 3. 訓練監控 (TensorBoard)
